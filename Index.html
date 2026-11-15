@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live TV & Highlights</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #fff; margin: 0; padding: 15px; }
+    h2 { font-size: 18px; margin: 20px 0 10px; color: #00d2ff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .card { background: #1c1c1c; border-radius: 8px; overflow: hidden; text-decoration: none; color: white; display: block; }
+    .card img { width: 100%; height: 100px; object-fit: cover; display: block; }
+    .card-info { padding: 8px; }
+    .title { font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .channel { font-size: 11px; color: #aaa; margin-top: 3px; }
+  </style>
+</head>
+<body>
+  <div id="app">Loading Live Channels & Events...</div>
+
+  <script>
+    async function loadData() {
+      const app = document.getElementById('app');
+      try {
+        const res = await fetch('/api/jiotv');
+        const data = await res.json();
+
+        if (data.error) {
+          app.innerHTML = `<p style="color:red;">Error: ${data.error}</p>`;
+          return;
+        }
+
+        let html = '<h2>Featured Events</h2><div class="grid">';
+        data.events.forEach(item => {
+          html += `
+            <a href="${item.url}" target="_blank" class="card">
+              <img src="${item.poster}" alt="${item.title}">
+              <div class="card-info">
+                <div class="title">${item.title}</div>
+                <div class="channel">${item.channel}</div>
+              </div>
+            </a>`;
+        });
+        html += '</div>';
+
+        data.categories.forEach(cat => {
+          if (cat.category_name === "Carousal" || !cat.items.length) return;
+          html += `<h2>${cat.category_name}</h2><div class="grid">`;
+          cat.items.forEach(item => {
+            html += `
+              <a href="${item.url}" target="_blank" class="card">
+                <img src="${item.poster}" alt="${item.title}">
+                <div class="card-info">
+                  <div class="title">${item.title}</div>
+                  <div class="channel">${item.channel} (ID: ${item.channel_id})</div>
+                </div>
+              </a>`;
+          });
+          html += '</div>';
+        });
+
+        app.innerHTML = html;
+      } catch (err) {
+        app.innerHTML = `<p style="color:red;">Failed to load: ${err.message}</p>`;
+      }
+    }
+    loadData();
+  </script>
+</body>
+</html>
