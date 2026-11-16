@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Watch Live</title>
+  <!-- Shaka Player (DASH + ClearKey DRM + HLS support) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.compiled.js"></script>
+  <!-- HLS.js (Fallback for pure HLS streams) -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0a; color: #fff; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .header { width: 100%; max-width: 800px; padding: 12px 15px; background: #141414; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; }
+    .back-btn { color: #00d2ff; text-decoration: none; font-size: 14px; font-weight: bold; }
+    .player-container { width: 100%; max-width: 800px; background: #000; position: relative; aspect-ratio: 16/9; }
+    video { width: 100%; height: 100%; background: #000; }
+    .info-bar { width: 100%; max-width: 800px; padding: 15px; background: #141414; display: flex; flex-direction: column; gap: 12px; }
+    .title-row { display: flex; justify-content: space-between; align-items: center; }
+    h1 { font-size: 16px; color: #fff; }
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: #222; color: #00ff88; border: 1px solid #333; }
+    .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .btn { padding: 10px 18px; border-radius: 25px; font-size: 13px; font-weight: bold; text-decoration: none; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .tg-btn { background: #24A1DE; color: #fff; }
+    .share-btn { background: #2a2a2a; color: #fff; border: 1px solid #444; }
+    .custom-box { display: flex; gap: 6px; margin-top: 5px; }
+    .custom-box input { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #333; background: #1e1e1e; color: #fff; font-size: 12px; }
+    .custom-box button { padding: 8px 14px; border-radius: 6px; border: none; background: #00d2ff; color: #000; font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <a href="/" class="back-btn">← Back to Channels</a>
+    <span id="engineBadge" class="badge">Auto Player</span>
+  </div>
+
+  <div class="player-container">
+    <video id="video" controls playsinline autoplay></video>
+  </div>
+
+  <div class="info-bar">
+    <div class="title-row">
+      <h1 id="streamTitle">Loading Stream...</h1>
+    </div>
+
+    <div class="actions">
+      <!-- Telegram Link -->
+      <a href="https://t.me/your_channel" target="_blank" class="btn tg-btn">Join Telegram</a>
+      <!-- Share Current Watch Link -->
+      <button class="btn share-btn" onclick="shareLink()">Share Link</button>
+    </div>
+
+    <!-- Direct M3U8 / MPD Link Tester (Agar kisi ke paas direct stream link ho) -->
+    <div class="custom-box">
+      <input type="text" id="manualUrl" placeholder="Paste .m3u8 or .mpd link (or keyId:key)...">
+      <button onclick="playManual()">Play</button>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id') || '';
+    const name = (params.get('name') || 'Live Stream').replace(/-/g, ' ');
+    const directUrl = params.get('url') || '';
+    const drmKey = params.get('key') || ''; // Format: keyId:key
+
+    document.getElementById('streamTitle').innerText = name + (id ? ` (#${id})` : '');
+    document.title = `Watch ${name}`;
+
+    // YAHAN APNA STREAM SOURCE TEMPLATE SET KAREIN (Jab aapke paas koi M3U/API link ho)
+    // Example: agar koi API id se stream deti hai toh: `https://example.com/live/${id}.m3u8`
+    const DEFAULT_STREAM_TEMPLATE = id ? `https://your-stream-source.com/play.m3u8?id=${id}` : '';
+
+    let activeStreamUrl = directUrl || DEFAULT_STREAM_TEMPLATE;
+
+    async function initPlayer(streamUrl, clearKeyPair = '') {
+      const video = document.getElementById('video');
+      const badge = document.getElementById('engineBadge');
+
+      if (!streamUrl) {
+        badge.innerText = "No Stream URL";
+        return;
+      }
+
+      // Check stream type: DASH (.mpd) ya DRM Key ho toh Shaka Player use karein
+      const isDash = streamUrl.includes('.mpd') || clearKeyPair !== '';
+
+      if (isDash) {
+        badge.innerText = "Shaka Player (DASH/DRM)";
+        shaka.polyfill.installAll();
+        if (shaka.Player.isBrowserSupported()) {
+          const player = new shaka.Player(video);
+          if (clearKeyPair && clearKeyPair.includes(':')) {
+            const [kid, key] = clearKeyPair.split(':');
+            player.configure({
+              drm: { clearKeys: { [kid.trim()]: key.trim() } }
+            });
+          }
+          try {
+            await player.load(streamUrl);
+            video.play();
+          } catch (e) {
+            console.error('Shaka Error:', e);
+            badge.innerText = "Stream Error";
+          }
+        }
+      } else {
+        // HLS (.m3u8) ke liye HLS.js use karein
+        badge.innerText = "HLS Player (.m3u8)";
+        if (Hls.isSupported()) {
+          const hls = new Hls();
+          hls.loadSource(streamUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = streamUrl;
+          video.play();
+        }
+      }
+    }
+
+    function playManual() {
+      const val = document.getElementById('manualUrl').value.trim();
+      if (!val) return;
+      // Agar user ne link|keyId:key format mein dala hai
+      const parts = val.split('|');
+      initPlayer(parts[0], parts[1] || '');
+    }
+
+    function shareLink() {
+      if (navigator.share) {
+        navigator.share({ title: name, url: window.location.href });
+      } else {
+        navigator.clipboard.writeText(window.location.href);
+        alert("Watch link copied!");
+      }
+    }
+
+    if (activeStreamUrl) {
+      initPlayer(activeStreamUrl, drmKey);
+    }
+  </script>
+</body>
+</html>
