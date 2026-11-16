@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live TV & Highlights</title>
+  <title>Live TV & Events</title>
   <style>
     body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #fff; margin: 0; padding: 15px; }
     h2 { font-size: 18px; margin: 20px 0 10px; color: #00d2ff; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-    .card { background: #1c1c1c; border-radius: 8px; overflow: hidden; text-decoration: none; color: white; display: block; }
+    .card { background: #1c1c1c; border-radius: 8px; overflow: hidden; text-decoration: none; color: white; display: block; transition: transform 0.2s; }
+    .card:active { transform: scale(0.97); }
     .card img { width: 100%; height: 100px; object-fit: cover; display: block; }
     .card-info { padding: 8px; }
     .title { font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -19,6 +20,10 @@
   <div id="app">Loading Live Channels & Events...</div>
 
   <script>
+    function createSlug(text) {
+      return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    }
+
     async function loadData() {
       const app = document.getElementById('app');
       try {
@@ -32,8 +37,10 @@
 
         let html = '<h2>Featured Events</h2><div class="grid">';
         data.events.forEach(item => {
+          const slug = createSlug(item.title);
+          const watchLink = `/watch.html?id=${item.channel_id}&name=${slug}`;
           html += `
-            <a href="${item.url}" target="_blank" class="card">
+            <a href="${watchLink}" class="card">
               <img src="${item.poster}" alt="${item.title}">
               <div class="card-info">
                 <div class="title">${item.title}</div>
@@ -47,8 +54,10 @@
           if (cat.category_name === "Carousal" || !cat.items.length) return;
           html += `<h2>${cat.category_name}</h2><div class="grid">`;
           cat.items.forEach(item => {
+            const slug = createSlug(item.title);
+            const watchLink = `/watch.html?id=${item.channel_id}&name=${slug}`;
             html += `
-              <a href="${item.url}" target="_blank" class="card">
+              <a href="${watchLink}" class="card">
                 <img src="${item.poster}" alt="${item.title}">
                 <div class="card-info">
                   <div class="title">${item.title}</div>
